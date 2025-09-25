@@ -16,7 +16,7 @@ app.use(helmet());
 
 app.use(
     cors({
-        origin: frontEndUrl || "http://192.168.8.14:5173",
+        origin: frontEndUrl,
         credentials: true,
     })
 );
