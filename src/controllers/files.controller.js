@@ -107,7 +107,8 @@ export const clearUp = async (req, res, next) => {
 };
 
 export const customDelete = async (req, res, next) => {
-    const urlRaw = req.params.url;
+    console.log(req.body);
+    const urlRaw = req.body.url;
     const URL = urlRaw.trim();
 
     try {
@@ -140,6 +141,8 @@ export const customDelete = async (req, res, next) => {
         next(err);
     }
 };
+
+export const sendURLViaEmail = async (req, res, next) => {};
 
 // Deterministic SHA256 hash for querying/uniqueness
 function hashURL(text) {

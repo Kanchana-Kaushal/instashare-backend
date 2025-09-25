@@ -4,10 +4,11 @@ import mongoose from "mongoose";
 import filesRoute from "./Routes/files.route.js";
 import errorHandler from "./middleware/error.middleware.js";
 import morgan from "morgan";
-import { deleteMedia } from "./utils/supabase.js";
+import cors from "cors";
 
 const app = express();
 
+app.use(cors());
 app.use(morgan("tiny"));
 app.use(express.json());
 

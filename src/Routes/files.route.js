@@ -1,10 +1,16 @@
 import express from "express";
-import { clearUp, saveFile } from "../controllers/files.controller.js";
+import {
+    clearUp,
+    customDelete,
+    saveFile,
+} from "../controllers/files.controller.js";
 
 const filesRoute = express.Router();
 
 filesRoute.post("/share", saveFile);
 
-filesRoute.get("/clearup", clearUp);
+filesRoute.post("/clearup", clearUp);
+
+filesRoute.post("/stop-sharing", customDelete);
 
 export default filesRoute;
