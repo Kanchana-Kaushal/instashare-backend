@@ -14,3 +14,5 @@ export const supabaseKEY = process.env.SUPABASE_KEY;
 export const myEmail = process.env.MY_EMAIL;
 
 export const appPassword = process.env.APP_PASSWORD;
+
+export const frontEndUrl = process.env.FRONTEND_URL;

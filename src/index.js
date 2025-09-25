@@ -1,15 +1,30 @@
 import express from "express";
-import { connString, PORT } from "./config/env.js";
+import { connString, frontEndUrl, PORT } from "./config/env.js";
 import mongoose from "mongoose";
 import filesRoute from "./Routes/files.route.js";
 import errorHandler from "./middleware/error.middleware.js";
 import morgan from "morgan";
 import cors from "cors";
+import { limiter } from "./middleware/rateLimiter.middleware.js";
+import helmet from "helmet";
 
 const app = express();
 
-app.use(cors());
+app.set("trust proxy", 1);
+
+app.use(helmet());
+
+app.use(
+    cors({
+        origin: frontEndUrl || "http://192.168.8.14:5173",
+        credentials: true,
+    })
+);
+
+app.use(limiter);
+
 app.use(morgan("tiny"));
+
 app.use(express.json());
 
 app.use("/api/files", filesRoute);
