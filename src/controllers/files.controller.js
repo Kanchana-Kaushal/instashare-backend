@@ -149,20 +149,18 @@ export const customDelete = async (req, res, next) => {
 export const sendURLViaEmail = async (req, res, next) => {
     const { url, email } = req.body;
 
-    console.log("Email: ", email);
-    console.log("URL: ", url);
-    console.log("My Email: ", myEmail);
-    console.log("App PSW: ", appPassword);
-
     const transporter = nodemailer.createTransport({
-        service: "gmail",
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false,
         auth: {
             user: myEmail,
             pass: appPassword,
         },
+        connectionTimeout: 60000, // 60 seconds
+        greetingTimeout: 30000, // 30 seconds
+        socketTimeout: 75000, // 75 seconds
     });
-
-    console.log("Transporter Creation passed", transporter);
 
     try {
         if (!email) {
@@ -209,11 +207,7 @@ export const sendURLViaEmail = async (req, res, next) => {
     `,
         };
 
-        console.log("Mail Options created");
-
-        const sent = await transporter.sendMail(mailOptions);
-
-        console.log("Transporter sent mail:", sent);
+        await transporter.sendMail(mailOptions);
 
         res.status(250).json({
             success: true,
