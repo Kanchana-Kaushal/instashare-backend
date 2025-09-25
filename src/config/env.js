@@ -10,3 +10,7 @@ export const encryptionKey = process.env.ENCRYPTION_KEY;
 export const supabaseURL = process.env.SUPABASE_URL;
 
 export const supabaseKEY = process.env.SUPABASE_KEY;
+
+export const myEmail = process.env.MY_EMAIL;
+
+export const appPassword = process.env.APP_PASSWORD;

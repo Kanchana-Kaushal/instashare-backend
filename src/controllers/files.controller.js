@@ -1,6 +1,8 @@
 import crypto from "crypto";
 import File from "../models/files.model.js";
 import { deleteMedia } from "../utils/supabase.js";
+import { appPassword, myEmail } from "../config/env.js";
+import nodemailer from "nodemailer";
 
 export const saveFile = async (req, res, next) => {
     try {
@@ -91,8 +93,10 @@ export const clearUp = async (req, res, next) => {
         }
 
         if (file.instantDelete === true) {
-            await deleteMedia(file.URL);
-            await file.deleteOne();
+            setTimeout(async () => {
+                await deleteMedia(file.URL);
+                await file.deleteOne();
+            }, 10 * 60 * 1000);
         }
 
         await cleanUpExpired(next);
@@ -142,7 +146,72 @@ export const customDelete = async (req, res, next) => {
     }
 };
 
-export const sendURLViaEmail = async (req, res, next) => {};
+export const sendURLViaEmail = async (req, res, next) => {
+    const { url, email } = req.body;
+
+    const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+            user: myEmail,
+            pass: appPassword,
+        },
+    });
+
+    try {
+        if (!email) {
+            const err = new Error("Email is required");
+            err.statusCode = 404;
+            throw err;
+        }
+
+        const mailOptions = {
+            from: "instaShare",
+            sender: "instaShare",
+            to: email,
+            subject: "Your shared file is ready!",
+            html: `
+      <div style="font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; color: #333;">
+        <h1 style="font-size: 28px; text-align: center; margin-bottom: 30px;">
+          <span style="color: black;">insta</span><span style="color: #38e07b;">Share</span>
+        </h1>
+
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Hey there 👋,<br/><br/>
+          Someone has shared a file with you through <strong>instaShare</strong>.
+        </p>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${url}" target="_blank" 
+            style="background-color: #38e07b; color: white; padding: 12px 24px; 
+                   text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+            🔗 View Shared File
+          </a>
+        </div>
+
+        <p style="font-size: 14px; color: #666;">
+          This link will expire based on the sender's settings. 
+          If you weren’t expecting this email, you can safely ignore it.
+        </p>
+
+        <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
+
+        <p style="font-size: 12px; text-align: center; color: #aaa;">
+          Powered by <span style="color: black;">insta</span><span style="color: #38e07b;">Share</span>
+        </p>
+      </div>
+    `,
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        res.status(250).json({
+            success: true,
+            message: "Mail sent successfully",
+        });
+    } catch (err) {
+        next(err);
+    }
+};
 
 // Deterministic SHA256 hash for querying/uniqueness
 function hashURL(text) {
