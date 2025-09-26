@@ -1,8 +1,8 @@
 import crypto from "crypto";
 import File from "../models/files.model.js";
 import { deleteMedia } from "../utils/supabase.js";
-import { appPassword, myEmail } from "../config/env.js";
-import nodemailer from "nodemailer";
+import { mailJetApiKey, mailJetSecretKey, myEmail } from "../config/env.js";
+import Mailjet from "node-mailjet";
 
 export const saveFile = async (req, res, next) => {
     try {
@@ -156,24 +156,22 @@ export const sendURLViaEmail = async (req, res, next) => {
             throw err;
         }
 
-        const transporter = nodemailer.createTransport({
-            host: "smtp.gmail.com",
-            port: 465,
-            secure: true,
-            auth: {
-                user: myEmail,
-                pass: appPassword,
-            },
-            tls: {
-                rejectUnauthorized: false,
-            },
-        });
+        const mailjet = Mailjet.apiConnect(mailJetApiKey, mailJetSecretKey);
 
-        const mailData = {
-            from: myEmail,
-            to: email,
-            subject: "Your shared file is ready!",
-            html: `
+        await mailjet.post("send", { version: "v3.1" }).request({
+            Messages: [
+                {
+                    From: {
+                        Email: myEmail,
+                        Name: "instaShare",
+                    },
+                    To: [
+                        {
+                            Email: email,
+                        },
+                    ],
+                    Subject: "Your shared file is ready!",
+                    HTMLPart: `
       <div style="font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; color: #333;">
         <h1 style="font-size: 28px; text-align: center; margin-bottom: 30px;">
           <span style="color: black;">insta</span><span style="color: #38e07b;">Share</span>
@@ -204,19 +202,9 @@ export const sendURLViaEmail = async (req, res, next) => {
         </p>
       </div>
     `,
-        };
-
-        await new Promise((resolve, reject) => {
-            transporter.sendMail(mailData, (err, info) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(info);
-                }
-            });
+                },
+            ],
         });
-
-        await transporter.sendMail(mailOptions);
 
         res.status(250).json({
             success: true,
