@@ -149,19 +149,6 @@ export const customDelete = async (req, res, next) => {
 export const sendURLViaEmail = async (req, res, next) => {
     const { url, email } = req.body;
 
-    const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false,
-        auth: {
-            user: myEmail,
-            pass: appPassword,
-        },
-        connectionTimeout: 60000, // 60 seconds
-        greetingTimeout: 30000, // 30 seconds
-        socketTimeout: 75000, // 75 seconds
-    });
-
     try {
         if (!email) {
             const err = new Error("Email is required");
@@ -169,9 +156,21 @@ export const sendURLViaEmail = async (req, res, next) => {
             throw err;
         }
 
-        const mailOptions = {
-            from: "instaShare",
-            sender: "instaShare",
+        const transporter = nodemailer.createTransport({
+            host: "smtp.gmail.com",
+            port: 465,
+            secure: true,
+            auth: {
+                user: myEmail,
+                pass: appPassword,
+            },
+            tls: {
+                rejectUnauthorized: false,
+            },
+        });
+
+        const mailData = {
+            from: myEmail,
             to: email,
             subject: "Your shared file is ready!",
             html: `
@@ -207,6 +206,16 @@ export const sendURLViaEmail = async (req, res, next) => {
     `,
         };
 
+        await new Promise((resolve, reject) => {
+            transporter.sendMail(mailData, (err, info) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(info);
+                }
+            });
+        });
+
         await transporter.sendMail(mailOptions);
 
         res.status(250).json({
@@ -215,7 +224,6 @@ export const sendURLViaEmail = async (req, res, next) => {
         });
     } catch (err) {
         console.log(err);
-
         next(err);
     }
 };
