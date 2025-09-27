@@ -4,10 +4,19 @@ import {
     customDelete,
     saveFile,
     sendURLViaEmail,
+    verifyFile,
+    wakeUp,
 } from "../controllers/files.controller.js";
-import { emailLimiter } from "../middleware/rateLimiter.middleware.js";
+import {
+    emailLimiter,
+    wakeUpLimiter,
+} from "../middleware/rateLimiter.middleware.js";
 
 const filesRoute = express.Router();
+
+filesRoute.get("/wake-up", wakeUpLimiter, wakeUp);
+
+filesRoute.post("/verify-file", verifyFile);
 
 filesRoute.post("/share", saveFile);
 

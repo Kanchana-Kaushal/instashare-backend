@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import File from "../models/files.model.js";
-import { deleteMedia } from "../utils/supabase.js";
+import { deleteMedia, verifyFileExists } from "../utils/supabase.js";
 import { mailJetApiKey, mailJetSecretKey, myEmail } from "../config/env.js";
 import Mailjet from "node-mailjet";
 
@@ -20,34 +20,16 @@ export const saveFile = async (req, res, next) => {
             throw err;
         }
 
-        let expiresAt;
-
-        switch (ttl) {
-            case "1h":
-                expiresAt = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1 hour
-                break;
-            case "3h":
-                expiresAt = new Date(Date.now() + 3 * 60 * 60 * 1000); // 3 hours
-                break;
-            case "6h":
-                expiresAt = new Date(Date.now() + 6 * 60 * 60 * 1000); // 6 hours
-                break;
-            case "12h":
-                expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000); // 12 hours
-                break;
-            case "24h":
-                expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-                break;
-            case "3d":
-                expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // 3 days
-                break;
-            case "7d":
-                expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-                break;
-            default:
-                expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // fallback 7 days
-                break;
-        }
+        const ttlMap = {
+            "1h": 1 * 60 * 60 * 1000,
+            "3h": 3 * 60 * 60 * 1000,
+            "6h": 6 * 60 * 60 * 1000,
+            "12h": 12 * 60 * 60 * 1000,
+            "24h": 24 * 60 * 60 * 1000,
+            "3d": 3 * 24 * 60 * 60 * 1000,
+            "7d": 7 * 24 * 60 * 60 * 1000,
+        };
+        const expiresAt = new Date(Date.now() + (ttlMap[ttl] ?? ttlMap["7d"]));
 
         const hashedURL = hashURL(URL);
 
@@ -60,8 +42,6 @@ export const saveFile = async (req, res, next) => {
 
         await file.save();
 
-        await cleanUpExpired(next);
-
         res.json({
             success: true,
             message: "Record Saved Successfully",
@@ -73,7 +53,7 @@ export const saveFile = async (req, res, next) => {
 
 export const clearUp = async (req, res, next) => {
     const urlRaw = req.body.url;
-    const URL = urlRaw.trim();
+    const URL = urlRaw?.trim();
 
     try {
         if (!URL) {
@@ -86,24 +66,14 @@ export const clearUp = async (req, res, next) => {
 
         const file = await File.findOne({ URLHash: hashedURL });
 
-        if (!file) {
-            const err = new Error("Cannot find the file");
-            err.statusCode = 404;
-            throw err;
+        if (file && file.instantDelete === true) {
+            await deleteMedia(file.URL);
+            await file.deleteOne();
         }
-
-        if (file.instantDelete === true) {
-            setTimeout(async () => {
-                await deleteMedia(file.URL);
-                await file.deleteOne();
-            }, 10 * 60 * 1000);
-        }
-
-        await cleanUpExpired(next);
 
         res.json({
             success: true,
-            message: "Operation Successful",
+            message: "Cleanup scheduled successfully",
         });
     } catch (err) {
         next(err);
@@ -111,7 +81,6 @@ export const clearUp = async (req, res, next) => {
 };
 
 export const customDelete = async (req, res, next) => {
-    console.log(req.body);
     const urlRaw = req.body.url;
     const URL = urlRaw.trim();
 
@@ -132,10 +101,8 @@ export const customDelete = async (req, res, next) => {
             throw err;
         }
 
-        //Supabase Delete
         await file.deleteOne();
-
-        await cleanUpExpired(next);
+        await deleteMedia(URL);
 
         res.json({
             success: true,
@@ -216,27 +183,72 @@ export const sendURLViaEmail = async (req, res, next) => {
     }
 };
 
-// Deterministic SHA256 hash for querying/uniqueness
-function hashURL(text) {
-    return crypto.createHash("sha256").update(text).digest("hex");
-}
-
-//This function is use to clean up expired files
-const cleanUpExpired = async (next) => {
+export const wakeUp = async (req, res, next) => {
     try {
+        const now = new Date();
+
         const filesToBeDeleted = await File.find({
-            expiresAt: { $lt: new Date() },
+            expiresAt: { $lt: now },
         });
 
-        if (filesToBeDeleted.length > 0) {
-            await Promise.all(
-                filesToBeDeleted.map(async (file) => {
+        if (!filesToBeDeleted.length) return;
+
+        await Promise.all(
+            filesToBeDeleted.map(async (file) => {
+                try {
                     await deleteMedia(file.URL);
                     await file.deleteOne();
-                })
-            );
-        }
+                } catch (err) {
+                    console.error(`Failed to delete file ${file._id}:`, err);
+                }
+            })
+        );
+
+        res.send("Active");
     } catch (err) {
         next(err);
     }
 };
+
+export const verifyFile = async (req, res, next) => {
+    const urlRaw = req.body.url;
+    const URL = urlRaw?.trim();
+
+    try {
+        if (!URL) {
+            const err = new Error("URL is required");
+            err.statusCode = 400;
+            throw err;
+        }
+
+        const hashedURL = hashURL(URL);
+
+        const file = await File.findOne({ URLHash: hashedURL });
+
+        if (!file) {
+            const err = new Error("Cannot find the file in DB");
+            err.statusCode = 404;
+            throw err;
+        }
+
+        const supaBaseStatus = await verifyFileExists(URL);
+
+        if (!supaBaseStatus) {
+            const err = new Error("Cannot find the file in Supabase");
+            err.statusCode = 404;
+            throw err;
+        }
+
+        res.json({
+            success: true,
+            message: "File exists",
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+// Deterministic SHA256 hash for querying/uniqueness
+function hashURL(text) {
+    return crypto.createHash("sha256").update(text).digest("hex");
+}

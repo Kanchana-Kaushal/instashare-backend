@@ -48,3 +48,27 @@ export const deleteMedia = async (fileNameOrUrl) => {
         return false;
     }
 };
+
+export const verifyFileExists = async (fileUrl) => {
+    try {
+        if (!fileUrl) {
+            throw new Error("File URL is required");
+        }
+
+        const basePath = ".supabase.co/storage/v1/object/public/instaShare/";
+        if (!fileUrl.includes(basePath)) {
+            return {
+                success: false,
+                message: "Invalid file URL",
+            };
+        }
+
+        const response = await fetch(fileUrl, {
+            method: "HEAD",
+        });
+
+        return true;
+    } catch (err) {
+        return false;
+    }
+};
